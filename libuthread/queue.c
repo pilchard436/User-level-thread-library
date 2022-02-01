@@ -4,49 +4,151 @@
 
 #include "queue.h"
 
+#define DEFAULT_QUEUE_SIZE 10
+
 struct queue {
-	/* TODO */
+	int head, tail, size, capacity;
+	void **arr;
 };
+
+int queue_empty(queue_t queue){
+	return (queue == NULL || queue->arr[queue->head] == NULL || 
+	(queue->size == 0) || (queue->tail == queue->head - 1));
+}
 
 queue_t queue_create(void)
 {
-	/* TODO */
+	//allocating memory for the size of the queue
+	queue_t queue = (queue_t) malloc(sizeof(queue_t));
+	queue->head = 0;
+	queue->capacity = DEFAULT_QUEUE_SIZE;
+	queue->tail = -1;
+	queue->size = 0;
+
+	//gathers the address of the ptr
+	queue->arr = (void**) malloc(DEFAULT_QUEUE_SIZE * sizeof(void*));
+	
+	if(queue->arr != NULL){
+		return queue;
+	}
 	return NULL;
 }
 
 int queue_destroy(queue_t queue)
 {
-	/* TODO */
-	return -1;
+	//check for empty queue
+	if (queue_empty(queue) == 0){
+		return -1;
+	}
+	//destroy queue and arr
+	free(&queue->arr);
+	free(queue);
+	return 0;
 }
 
 int queue_enqueue(queue_t queue, void *data)
 {
-	/* TODO */
-	return -1;
+	//queue pointer doesn't exist
+	if (queue == NULL){
+		return -1;
+	}
+	if (data == NULL){
+		return -1;
+	}
+	//need to check if queue is full
+	if (queue->size == queue->capacity){
+		// need to realloc arr, if fail return -1
+		// if success then enqueue
+		queue->capacity += 1;
+		queue->arr = realloc(queue->arr, queue->capacity * sizeof(void*));
+		if (queue->arr == NULL){
+			return -1;
+		}
+		queue->tail++;
+	}
+	// queue is not full
+	else {
+		queue->tail++;
+	}
+	queue->arr[queue->tail] = data;
+	queue->size++;
+	return 0;
 }
 
 int queue_dequeue(queue_t queue, void **data)
 {
-	/* TODO */
-	return -1;
+	//queue is empty
+	if (queue_empty(queue) == 1){
+			return -1;
+	}
+	*data = queue->arr[queue->head];
+	if (*data == NULL){
+		return -1;
+	}
+	free(&(queue->arr[queue->head]));
+	//move down the queue to next avaliable
+	queue->head++;
+	//shrink queue
+	queue->size--;
+	return 0;
 }
 
 int queue_delete(queue_t queue, void *data)
 {
-	/* TODO */
-	return -1;
+	//queue is empty
+	if (queue_empty(queue) == 1){
+			return -1;
+		}	
+	//check for no data
+	if (data == NULL){
+		return -1;
+	}
+
+	int count = queue->head;
+	void *item = queue->arr[count];
+	while (item != data && count != queue->tail){
+		count++;
+		item = queue->arr[count];
+	}
+	//reached the end of the queue and did not find item
+	if (item != data && count == queue->tail) {
+		return -1;
+	}
+	while (count != queue->tail){
+		queue->arr[count] = queue->arr[count + 1];
+		count++;
+	}
+	queue->tail--;
+	queue->size--;
+	return 0;
 }
 
 int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 {
-	/* TODO */
-	return -1;
+
+	int count = queue->head;
+	int retval;
+	
+	//queue is empty
+	if (queue_empty(queue) == 1){
+		return -1;
+	}	
+	//Traversing from oldest to newest in queue
+	while(count != queue->tail){
+		retval = (*func)(queue, queue->arr[count], arg);
+		if(retval == 1){
+			if(data != NULL){
+				*data = queue->arr[count];
+			}	
+			break;
+		}
+		count++;
+	}
+	return 0;
 }
 
 int queue_length(queue_t queue)
 {
-	/* TODO */
-	return -1;
+	return (queue == NULL) ? -1 : queue->size;
 }
 
