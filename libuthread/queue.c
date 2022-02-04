@@ -19,29 +19,29 @@ int queue_empty(queue_t queue){
 queue_t queue_create(void)
 {
 	//allocating memory for the size of the queue
-	queue_t queue = (queue_t) malloc(sizeof(queue_t));
-	queue->head = 0;
-	queue->capacity = DEFAULT_QUEUE_SIZE;
-	queue->tail = -1;
-	queue->size = 0;
+	queue_t q = (queue_t) malloc(sizeof(queue_t));
+	q->head = 0;
+	q->capacity = DEFAULT_QUEUE_SIZE;
+	q->tail = -1;
+	q->size = 0;
 
 	//gathers the address of the ptr
-	queue->arr = (void**) malloc(DEFAULT_QUEUE_SIZE * sizeof(void*));
+	q->arr = (void**) malloc(DEFAULT_QUEUE_SIZE * sizeof(void*));
 	
-	if(queue->arr != NULL){
-		return queue;
+	if(q->arr != NULL){
+		return q;
 	}
 	return NULL;
 }
 
 int queue_destroy(queue_t queue)
 {
-	//check for empty queue
+	//check for not empty queue
 	if (queue_empty(queue) == 0){
 		return -1;
-	}
+	}//if empty
+	
 	//destroy queue and arr
-	free(&queue->arr);
 	free(queue);
 	return 0;
 }
