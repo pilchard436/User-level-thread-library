@@ -11,119 +11,158 @@
 #include "uthread.h"
 #include "queue.h"
 
-/* TODO */
-
 #define RUNNING 0
 #define READY 1
 #define BLOCKED 2
+#define ZOMBIE 3
 
 struct TCB{	
 	uthread_t tid;
 	int state;
 	uthread_ctx_t thread_context;
-	int* top_of_stack;
+	void* top_of_stack;
+    int retval;
 };
 
 typedef struct TCB* TCB_t;
 
-//shared queue
-queue_t ready_q;
+int find_item(queue_t q, void *data, void *arg)
+{
+    TCB_t *a = (TCB_t)data;
+    int match = (int)arg;
+    (void)q; //unused
 
-TCB_t running;
+    if (*a->state == match)
+        return 1;
+
+    return 0;
+}
+
+//shared queue
+queue_t lifecycle_q;
+
+//current running thread
+TCB_t running_thread;
+
+//Number of threads created
 int thread_count;
 
+TCB_t threads[USHRT_MAX];
 
 
 int uthread_start(int preempt)
 {
+	/*Initalize Scheduling queue*/
+	lifecycle_q = queue_create();
+	
+	if (lifecycle_q == NULL){
+		return -1;
+	}
+
+	/*Create Main Thread*/
 	//allocate memory into the heap
-	TCB_t main_TCB = (TCB_t) malloc(sizeof(TCB_t));
+	threads[0] = (TCB_t) malloc(sizeof(TCB_t));
 
 	//keeps track of running TID
-	running = main_TCB;
+	running_thread = threads[0];
 	//How many threads are created
 	thread_count = 1;
 	
-	main_TCB->tid = 0;
-	main_TCB->state = RUNNING;
-	uthread_ctx_init(&(main_TCB->thread_context), main_TCB->top_of_stack, main());
-	main_TCB->top_of_stack = (int *) uthread_ctx_alloc_stack();
-	
-	ready_q = queue_create();
-	if (ready_q == NULL){
-		return -1;
-	}
+	threads[0]->tid = 0;
+	threads[0]->state = RUNNING;
+	//context is already dont automatically for us
+	//the context running is already in main, dont need to 
+
+	//allocated memory for thread context 
+	threads[0]->top_of_stack = uthread_ctx_alloc_stack();
+	//set curthread to init running thread
 	//add main TCB into the top of queue
-	queue_enqueue(ready_q, (void*) main_TCB);
+	queue_enqueue(lifecycle_q, (void*) threads[0]);
 	//success
 	return 0;
 }
 
 int uthread_stop(void)
 {
-	/* TODO */
-	void** dummy;
+	void* dummy_thread;
 
-	running = NULL;
+	running_thread = NULL;
 	thread_count = 0;
-	
-	while (ready_q->size != 0){
-		queue_dequeue(ready_q, &dummy);
+	//check for length
+
+	//check to see if main thread is running
+	if(threads[0]->state != RUNNING){
+		return -1;
 	}
-	return queue_destroy(ready_q);
+	//check queue if only has one element in queue
+	if(queue_length != 1){
+			return -1;
+	}
+	queue_dequeue(lifecycle_q, &dummy_thread);
+	return queue_destroy(lifecycle_q);
 }
 
 int uthread_create(uthread_func_t func)
 {
 	/* TODO */
 	//allocate memory into the heap
-	TCB_t thread = (TCB_t) malloc(sizeof(TCB_t));
+	threads[thread_count] = (TCB_t) malloc(sizeof(TCB_t));
 	
 	//memory allocation failure
-	if (thread == NULL) return -1;
+	if (threads[thread_count] == NULL) return -1;
 	
 	//for every instance that a tread is created +1
 	//main = 0, t1 = 1
-	thread->tid = thread_count;
+	threads[thread_count]->tid = thread_count;
 	thread_count++;
 
 	//Overflowing TID
 	if(thread_count > USHRT_MAX) return -1;
 	
 	//start threads in ready state
-	thread->state = READY;
+	threads[thread_count]->state = READY;
+	//allocated stack for thread
+	threads[thread_count]->top_of_stack = uthread_ctx_alloc_stack();
 	//extract thread context
-	uthread_ctx_init(&(thread->thread_context), thread->top_of_stack, (*func));
-	
-	//context creation failure
-	if(thread->thread_context == NULL) return -1;
-	thread->top_of_stack = (int *) uthread_ctx_alloc_stack();
+	uthread_ctx_init(&(threads[thread_count]->thread_context), threads[thread_count]->top_of_stack, func);
 
-	queue_enqueue(ready_q, (void*) thread);
+	queue_enqueue(lifecycle_q, (void*) threads[thread_count]);
 	
-	return thread->tid;
+	return threads[thread_count]->tid;
 
 }
 
 void uthread_yield(void)
 {
-	
-	//move running process to ready queue; yields its time
-	running->state = READY; 
-	queue_enqueue(ready_q, (void *) running);
-	queue_dequeue(ready_q, &running);
+	//move running process to queue; yields its time
+    TCB_t prev_thread, next_thread = NULL;
 
+    prev_thread = running_thread;
+    if (prev_thread->state = RUNNING){
+        prev_thread->state = READY; 
+    }
+    queue_enqueue(lifecycle_q, (void *) prev_thread);
+    queue_iterate(lifecycle_q, find_item, (void *) READY, (void**)&next_thread);
+    if (next_thread == NULL) return; // no more threads to run
+    queue_delete(lifecycle_q, next_thread);
+    running_thread = next_thread;
+    // context switch
+    uthread_ctx_switch(prev_thread->thread_context, running_thread->thread_context);
+	
 }
 
 uthread_t uthread_self(void)
 {
 	//extracts the TID of the currently running state
-	return running->tid;
-}
+	return running_thread->tid;
+} 
 
 void uthread_exit(int retval)
 {
-	/* TODO */
+    // set state to zombie and set retval, enqueue
+	running_thread->state = ZOMBIE;
+    running_thread->retval = retval;
+    uthread_yield();
 }
 
 int uthread_join(uthread_t tid, int *retval)
@@ -132,9 +171,10 @@ int uthread_join(uthread_t tid, int *retval)
 
 	while(1){
 		//no more threads to run in system
-		if(ready_q == NULL){
+		if(queue_length(lifecycle_q) == 0){
 			break;
 		}
+        uthread_yield();
 	}
 	return -1;
 }
