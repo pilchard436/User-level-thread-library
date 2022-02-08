@@ -1,25 +1,31 @@
 # Target library
 lib := libuthread.a
-objs := queue.o #preempt.o uthread.o context.o
+objs := queue.o uthread.o context.o
 CC := gcc
-CFLAGS := -Wall -Werror
+CFLAGS := -Wall -Wextra -Werror
+## Debug flag
+ifneq ($(D),1)
+CFLAGS += -O2
+else
 CFLAGS += -g
-all: $(lib)
+endif
 
-## TODO
+all: $(lib)
 
 $(lib): $(objs)
 	ar rcs $(lib) $(objs)
 
-queue.o : queue.c queue.h
+queue.o: queue.c queue.h
 	$(CC) $(CFLAGS) $< -c
 
-# preempt.o:
-# uthread.o:
-# context.o:
+uthread.o: uthread.c uthread.h queue.h private.h
+	$(CC) $(CFLAGS) $< -c
+
+context.o: context.c uthread.h private.h
+	$(CC) $(CFLAGS) $< -c
 
 clean:
-	rm -f $(lib) queue.o
+	rm -f $(lib) queue.o context.o uthread.o
 
 #ar rcs libuthread.a file1.o file2.o #ar rcs my_library.a file1.o file2.o
 
@@ -49,5 +55,3 @@ clean:
 # 	$@ evaluates to all
 # 	$< evaluates to library.cpp
 # 	$^ evaluates to library.cpp main.cpp
-
-

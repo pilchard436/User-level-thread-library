@@ -22,21 +22,41 @@ struct TCB{
 	uthread_ctx_t thread_context;
 	void* top_of_stack;
     int retval;
+	struct TCB *parent_thread;
+	struct TCB *child_thread;
 };
 
 typedef struct TCB* TCB_t;
 
-int find_item(queue_t q, void *data, void *arg)
+
+
+//find specific state of thread
+int find_item(queue_t q, void *data, void *arg) //ERROR STRUCT TO PTR 
 {
-    TCB_t *a = (TCB_t)data;
-    int match = (int)arg;
+	//it is already a ptr no need for *a
+    TCB_t a = (TCB_t)data;
+    int match = (int)(long)arg;
     (void)q; //unused
 
-    if (*a->state == match)
+    if (a->state == match)
         return 1;
 
     return 0;
 }
+//find specifc tid of thread
+static int tid_search(queue_t q, void *data, void *arg)
+{
+    TCB_t a = (TCB_t)data;
+    int match = (int)(long)arg;
+    (void)q; //unused
+
+    if (a->tid == match)
+        return 1;
+
+    return 0;
+}
+
+//int tid_search(queue_t q, void*data)
 
 //shared queue
 queue_t lifecycle_q;
@@ -52,6 +72,7 @@ TCB_t threads[USHRT_MAX];
 
 int uthread_start(int preempt)
 {
+	(void) preempt;
 	/*Initalize Scheduling queue*/
 	lifecycle_q = queue_create();
 	
@@ -95,7 +116,7 @@ int uthread_stop(void)
 		return -1;
 	}
 	//check queue if only has one element in queue
-	if(queue_length != 1){
+	if(queue_length(lifecycle_q) != 1){
 			return -1;
 	}
 	queue_dequeue(lifecycle_q, &dummy_thread);
@@ -138,7 +159,7 @@ void uthread_yield(void)
     TCB_t prev_thread, next_thread = NULL;
 
     prev_thread = running_thread;
-    if (prev_thread->state = RUNNING){
+    if (prev_thread->state == RUNNING){
         prev_thread->state = READY; 
     }
     queue_enqueue(lifecycle_q, (void *) prev_thread);
@@ -147,7 +168,7 @@ void uthread_yield(void)
     queue_delete(lifecycle_q, next_thread);
     running_thread = next_thread;
     // context switch
-    uthread_ctx_switch(prev_thread->thread_context, running_thread->thread_context);
+    uthread_ctx_switch(&(prev_thread->thread_context), &(running_thread->thread_context));
 	
 }
 
@@ -162,20 +183,66 @@ void uthread_exit(int retval)
     // set state to zombie and set retval, enqueue
 	running_thread->state = ZOMBIE;
     running_thread->retval = retval;
+	// you need to unblock the parent through the childs exit
+	//setting parent to READY
     uthread_yield();
 }
 
 int uthread_join(uthread_t tid, int *retval)
 {
-	/* TODO */
+	
+	TCB_t curr_trd = NULL;
 
-	while(1){
-		//no more threads to run in system
-		if(queue_length(lifecycle_q) == 0){
-			break;
-		}
-        uthread_yield();
+	//check to see if main is running (main runs until join)
+	if(threads[0]->state == RUNNING){
+		return -1;
 	}
+	if(uthread_self() == tid)
+	{
+		return -1;
+	}
+	//use tid_search to find specific tid and grab any curr thread that has the specific tid
+	//stores tid into curr_trd->tid
+	queue_iterate(lifecycle_q, tid_search, (void *)(long)tid, (void**)&curr_trd);
+	//check to see if thread is a zombie or not
+	//If T2 is already dead, T1 can collect T2 right away.
+	//check if T2 is dead
+	if(curr_trd->state == ZOMBIE){
+		//just delete curr_trd from queue, free memory for it and store its return value in retval
+		*retval = curr_trd->retval;
+		queue_dequeue(lifecycle_q, (void**) &curr_trd);
+		free(curr_trd);
+		//remember retval is the parameter passed to this func which is meant to hold the return value of the thread
+		return 0;
+		//then you can return
+	}else{
+		//If T2 is still an active thread, T1 must be blocked (i.e. it cannot be scheduled to run anymore) until T2 dies. When T2 dies, T1 is unblocked and collects T2.
+		//make the parent thread the running process
+		curr_trd->parent_thread =  running_thread;
+		if(running_thread->state != BLOCKED){
+			running_thread->state = BLOCKED;
+		}
+		//wait till T2 dies
+		uthread_yield();
+		
+		if(curr_trd->state == ZOMBIE){
+			//When T2 dies, T1 is unblocked and collects T2.
+			running_thread->state = READY;
+			*retval = curr_trd->retval;
+			//once T2 is collected, we get rid of it
+			queue_dequeue(lifecycle_q, (void**) &curr_trd);
+			free(curr_trd);
+		}
+	}
+
 	return -1;
 }
 
+	// while(1){
+	// 	//no more threads in READY state in queue
+	// 	if(queue_iterate(lifecycle_q, find_item, (void *) READY, (void**)&temp_thread) == 0){
+	// 		break;
+	// 	}
+	// 	//Yields next avaliable thread
+    //     uthread_yield();
+	// }

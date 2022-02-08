@@ -79,13 +79,13 @@ int queue_dequeue(queue_t queue, void **data)
 {
 	//queue is empty
 	if (queue_empty(queue) == 1){
-			return -1;
+		return -1;
 	}
 	*data = queue->arr[queue->head];
 	if (*data == NULL){
 		return -1;
 	}
-	free(&(queue->arr[queue->head]));
+	//free(&(queue->arr[queue->head]));
 	//move down the queue to next avaliable
 	queue->head++;
 	//shrink queue
@@ -106,12 +106,13 @@ int queue_delete(queue_t queue, void *data)
 
 	int count = queue->head;
 	void *item = queue->arr[count];
-	while (item != data && count != queue->tail){
+
+	while (*((int *)item) != *((int *)data) && count != queue->tail){
 		count++;
 		item = queue->arr[count];
 	}
 	//reached the end of the queue and did not find item
-	if (item != data && count == queue->tail) {
+	if (*((int *)item) != *((int *)data) && count == queue->tail) {
 		return -1;
 	}
 	while (count != queue->tail){
@@ -151,4 +152,3 @@ int queue_length(queue_t queue)
 {
 	return (queue == NULL) ? -1 : queue->size;
 }
-
