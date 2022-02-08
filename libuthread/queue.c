@@ -86,7 +86,7 @@ int queue_dequeue(queue_t queue, void **data)
 		return -1;
 	}
 	queue->arr[queue->head] = NULL;
-	free((queue->arr[queue->head]));
+	free(queue->arr[queue->head]);
 	//move down the queue to next avaliable
 	queue->head++;
 	//shrink queue
