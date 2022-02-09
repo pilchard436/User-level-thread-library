@@ -1,8 +1,9 @@
 # Target programs
 programs := \
-	queue_tester_example.x \
-	#uthread_hello.x \
-	#uthread_yield.x
+	queue_tester.x \
+	uthread_hello.x \
+	uthread_yield.x \
+	test_join.x
 
 # User-level thread library
 UTHREADLIB := libuthread
@@ -28,7 +29,7 @@ CUR_PWD := $(shell pwd)
 CC	= gcc
 
 # General gcc options
-CFLAGS	:= -Wall -Wextra -Werror
+CFLAGS	:= -Wall -Wextra -Werror -g
 CFLAGS	+= -pipe
 ## Debug flag
 ifneq ($(D),1)

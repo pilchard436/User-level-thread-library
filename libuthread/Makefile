@@ -1,6 +1,6 @@
 # Target library
 lib := libuthread.a
-objs := queue.o uthread.o context.o
+objs := queue.o uthread.o context.o preempt.o
 CC := gcc
 CFLAGS := -Wall -Wextra -Werror
 ## Debug flag
@@ -21,11 +21,14 @@ queue.o: queue.c queue.h
 uthread.o: uthread.c uthread.h queue.h private.h
 	$(CC) $(CFLAGS) $< -c
 
+preempt.o: preempt.c private.h uthread.h
+	$(CC) $(CFLAGS) $< -c
+
 context.o: context.c uthread.h private.h
 	$(CC) $(CFLAGS) $< -c
 
 clean:
-	rm -f $(lib) queue.o context.o uthread.o
+	rm -f $(lib) queue.o context.o uthread.o preempt.o
 
 #ar rcs libuthread.a file1.o file2.o #ar rcs my_library.a file1.o file2.o
 

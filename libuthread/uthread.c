@@ -28,7 +28,7 @@ struct TCB{
 
 typedef struct TCB* TCB_t;
 
-
+int do_preempt;
 
 //find specific state of thread
 int find_item(queue_t q, void *data, void *arg) //ERROR STRUCT TO PTR 
@@ -72,7 +72,7 @@ TCB_t threads[USHRT_MAX];
 
 int uthread_start(int preempt)
 {
-	(void) preempt;
+	do_preempt = preempt;
 	/*Initalize Scheduling queue*/
 	lifecycle_q = queue_create();
 	
@@ -100,11 +100,14 @@ int uthread_start(int preempt)
 	//add main TCB into the top of queue
 	queue_enqueue(lifecycle_q, (void*) threads[0]);
 	//success
+	
+	if (do_preempt == 1) preempt_start();
 	return 0;
 }
 
 int uthread_stop(void)
 {
+	if (do_preempt == 1) preempt_stop();
 	void* dummy_thread;
 
 	running_thread = NULL;
@@ -125,7 +128,7 @@ int uthread_stop(void)
 
 int uthread_create(uthread_func_t func)
 {
-	/* TODO */
+	if (do_preempt == 1) preempt_disable();
 	//allocate memory into the heap
 	threads[thread_count] = (TCB_t) malloc(sizeof(TCB_t));
 	
@@ -135,7 +138,7 @@ int uthread_create(uthread_func_t func)
 	//for every instance that a tread is created +1
 	//main = 0, t1 = 1
 	threads[thread_count]->tid = thread_count;
-	thread_count++;
+	
 
 	//Overflowing TID
 	if(thread_count > USHRT_MAX) return -1;
@@ -148,13 +151,18 @@ int uthread_create(uthread_func_t func)
 	uthread_ctx_init(&(threads[thread_count]->thread_context), threads[thread_count]->top_of_stack, func);
 
 	queue_enqueue(lifecycle_q, (void*) threads[thread_count]);
-	
-	return threads[thread_count]->tid;
+
+	thread_count++;
+
+	if (do_preempt == 1) preempt_enable();
+
+	return threads[thread_count-1]->tid;
 
 }
 
 void uthread_yield(void)
 {
+	if (do_preempt == 1) preempt_disable();
 	//move running process to queue; yields its time
     TCB_t prev_thread, next_thread = NULL;
 
@@ -169,7 +177,7 @@ void uthread_yield(void)
     running_thread = next_thread;
     // context switch
     uthread_ctx_switch(&(prev_thread->thread_context), &(running_thread->thread_context));
-	
+	if (do_preempt == 1) preempt_enable();
 }
 
 uthread_t uthread_self(void)
@@ -180,21 +188,23 @@ uthread_t uthread_self(void)
 
 void uthread_exit(int retval)
 {
+	if (do_preempt == 1) preempt_disable();
     // set state to zombie and set retval, enqueue
 	running_thread->state = ZOMBIE;
     running_thread->retval = retval;
-	// you need to unblock the parent through the childs exit
 	//setting parent to READY
+	running_thread->parent_thread->state = READY;
+	if (do_preempt == 1) preempt_enable();
     uthread_yield();
 }
 
 int uthread_join(uthread_t tid, int *retval)
 {
-	
+	if (do_preempt == 1) preempt_disable();
 	TCB_t curr_trd = NULL;
 
-	//check to see if main is running (main runs until join)
-	if(threads[0]->state == RUNNING){
+	//check to see if we're joining main (main runs until join)
+	if(tid == 0){
 		return -1;
 	}
 	if(uthread_self() == tid)
@@ -210,9 +220,10 @@ int uthread_join(uthread_t tid, int *retval)
 	if(curr_trd->state == ZOMBIE){
 		//just delete curr_trd from queue, free memory for it and store its return value in retval
 		*retval = curr_trd->retval;
-		queue_dequeue(lifecycle_q, (void**) &curr_trd);
+		queue_delete(lifecycle_q, (void*) curr_trd);
 		free(curr_trd);
 		//remember retval is the parameter passed to this func which is meant to hold the return value of the thread
+		if (do_preempt == 1) preempt_enable();
 		return 0;
 		//then you can return
 	}else{
@@ -223,26 +234,20 @@ int uthread_join(uthread_t tid, int *retval)
 			running_thread->state = BLOCKED;
 		}
 		//wait till T2 dies
-		uthread_yield();
-		
-		if(curr_trd->state == ZOMBIE){
-			//When T2 dies, T1 is unblocked and collects T2.
-			running_thread->state = READY;
-			*retval = curr_trd->retval;
-			//once T2 is collected, we get rid of it
-			queue_dequeue(lifecycle_q, (void**) &curr_trd);
-			free(curr_trd);
+		if (do_preempt == 1) preempt_enable();
+		while (curr_trd->state != ZOMBIE){
+			uthread_yield();
 		}
+		if (do_preempt == 1) preempt_disable();
+		
+		//When T2 dies, T1 is unblocked and collects T2.
+		running_thread->state = READY;
+		*retval = curr_trd->retval;
+		//once T2 is collected, we get rid of it
+		queue_delete(lifecycle_q, (void*) curr_trd);
+		free(curr_trd);
+		
 	}
-
+	if (do_preempt == 1) preempt_enable();
 	return -1;
 }
-
-	// while(1){
-	// 	//no more threads in READY state in queue
-	// 	if(queue_iterate(lifecycle_q, find_item, (void *) READY, (void**)&temp_thread) == 0){
-	// 		break;
-	// 	}
-	// 	//Yields next avaliable thread
-    //     uthread_yield();
-	// }

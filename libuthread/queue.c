@@ -136,7 +136,7 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 		return -1;
 	}	
 	//Traversing from oldest to newest in queue
-	while(count != queue->tail){
+	while(count <= queue->tail){
 		retval = (*func)(queue, queue->arr[count], arg);
 		if(retval == 1){
 			if(data != NULL){
