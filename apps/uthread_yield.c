@@ -43,6 +43,7 @@ int main(void)
 {
 	uthread_start(0);
 	uthread_join(uthread_create(thread1), NULL);
+	printf("main \n");
 	uthread_stop();
 
 	return 0;
