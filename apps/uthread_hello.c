@@ -12,6 +12,9 @@
 int hello(void)
 {
 	printf("Hello world!\n");
+	uthread_yield();
+	printf("Hello world!\n");
+
 	return 0;
 }
 

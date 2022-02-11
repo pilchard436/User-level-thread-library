@@ -49,7 +49,8 @@ int main(void)
     uthread_join(uthread_create(thread1), &retval);
     printf("thread%d\n", uthread_self());
     printf("retval: %d\n", retval);
-    uthread_stop();
+    retval = uthread_stop();
+    printf("stop retval: %d\n", retval);
 
     return 0;
 }

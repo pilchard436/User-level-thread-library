@@ -98,7 +98,7 @@ int uthread_start(int preempt)
 	threads[0]->top_of_stack = uthread_ctx_alloc_stack();
 	// set curthread to init running thread
 	// add main TCB into the top of queue
-	queue_enqueue(lifecycle_q, (void *)threads[0]);
+	//queue_enqueue(lifecycle_q, (void *)threads[0]);
 	// success
 
 	if (do_preempt == 1)
@@ -110,7 +110,7 @@ int uthread_stop(void)
 {
 	if (do_preempt == 1)
 		preempt_stop();
-	void *dummy_thread;
+
 
 	running_thread = NULL;
 	thread_count = 0;
@@ -120,12 +120,11 @@ int uthread_stop(void)
 	{
 		return -1;
 	}
-	// check queue if only has one element in queue
-	if (queue_length(lifecycle_q) != 1)
+	// check queue is empty
+	if (queue_length(lifecycle_q) != 0)
 	{
 		return -1;
 	}
-	queue_dequeue(lifecycle_q, &dummy_thread);
 	return queue_destroy(lifecycle_q);
 }
 
@@ -178,14 +177,13 @@ void uthread_yield(void)
 		prev_thread->state = READY;
 	}
 	// put prev thread to the back of the queue
-	queue_delete(lifecycle_q, (void *)prev_thread);
+	//queue_delete(lifecycle_q, (void *)prev_thread);
 	queue_enqueue(lifecycle_q, (void *)prev_thread);
 	// find next thread
 	queue_iterate(lifecycle_q, find_item, (void *)READY, (void **)&next_thread);
-	if (next_thread == NULL)
-		return; // no more threads to run, this should not happen
 	running_thread = next_thread;
-	queue_delete(lifecycle_q, (void *)running_thread);
+	queue_delete(lifecycle_q, (void *)next_thread);
+	running_thread->state = RUNNING;
 	// context switch
 	uthread_ctx_switch(&(prev_thread->thread_context), &(running_thread->thread_context));
 	if (do_preempt == 1)

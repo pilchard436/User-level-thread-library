@@ -1,27 +1,43 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include <queue.h>
 #include <uthread.h>
 
-int shortfunc(void){
-	printf("If this prints immediantly after we execute program, preempt works\n");
+int shortfunc1(void){
+	printf("This should print after a very long time\n");
+	return 0;
+}
+
+int shortfunc2(void){
+	printf("If this prints immediantly after 'with preempt', preempt works\n");
 	return 0;
 }
 
 int longfunc(void){
-	sleep(10);
+	long i = 0;
+	while (i < 10000000000){
+		i++;
+	}
+	printf("%ld\n", i);
 	return 0;
 }
 
 int main(void)
 {
-	uthread_start(1);
+	printf("without preempt\n");
+	uthread_start(0);
 	int a = uthread_create(longfunc);
-	printf("in main\n");
-	int b = uthread_create(shortfunc);
+	int b = uthread_create(shortfunc1);
+    uthread_join(a, NULL);
+    uthread_join(b, NULL);
+    uthread_stop();
+
+	printf("with preempt\n");
+	uthread_start(1);
+	a = uthread_create(longfunc);
+	b = uthread_create(shortfunc2);
     uthread_join(a, NULL);
     uthread_join(b, NULL);
     uthread_stop();

@@ -24,7 +24,7 @@ struct itimerval vt_old;
 
 void alarm_handler(int alarm)
 {
-	(void)alarm;
+	(void)alarm; // unused
 	// signal handler will force the currently running thread to yield
 	uthread_yield();
 };
@@ -34,8 +34,8 @@ void preempt_start(void)
 	/*Set up handler for alarm*/
 	sa.sa_handler = alarm_handler;
 	sigemptyset(&sa.sa_mask);
-	//sa.sa_flags = 0;
-	// map signal handler to signal
+	sa.sa_flags = 0;
+	// map signal handler to sa, store old signal handler in sa_old
 	sigaction(SIGVTALRM, &sa, &sa_old);
 
 	/*Configure alarm*/
@@ -45,6 +45,7 @@ void preempt_start(void)
 	vt.it_interval.tv_sec = 0;
 	vt.it_interval.tv_usec = MICROSEC;
 
+	// set timer to vt, store old timer in vt_old
 	if (setitimer(ITIMER_VIRTUAL, &vt, &vt_old) == -1)
 	{
 		perror("setitimer error");
