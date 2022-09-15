@@ -1,7 +1,7 @@
 # User-level thread library
 
 ## Summary
-This program User-level thread was aimed to help us understand threads, but 
+This program User-level thread was aimed to help us understand threads, by 
 creating a user-level thread library for Linux. The library allows the 
 creation of new threads, execution of threads by using the round robin 
 scheduling, the ability for threads to synchronize and join other threads, and 
